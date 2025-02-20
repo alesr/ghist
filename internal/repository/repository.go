@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	dbDirname  = "ghist"
+	dbDirname  = ".ghist"
 	dbFilename = "ghist.db"
 
 	createTableQuery = `
@@ -19,7 +19,6 @@ const (
 		name TEXT PRIMARY KEY,
 		stars INTEGER,
 		forks INTEGER,
-		watchers INTEGER,
 		last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`
 )
@@ -77,7 +76,7 @@ func initDB(dbFile string) (*sql.DB, error) {
 }
 
 func (s *SQLite) GetRepositories() ([]service.GithubRepo, error) {
-	rows, err := s.db.Query("SELECT name, stars, forks, watchers FROM repositories")
+	rows, err := s.db.Query("SELECT name, stars, forks FROM repositories")
 	if err != nil {
 		return nil, fmt.Errorf("could not query repositories: %w", err)
 	}
@@ -86,7 +85,7 @@ func (s *SQLite) GetRepositories() ([]service.GithubRepo, error) {
 	var repos []service.GithubRepo
 	for rows.Next() {
 		var repo service.GithubRepo
-		if err := rows.Scan(&repo.Name, &repo.Stars, &repo.Forks, &repo.Watchers); err != nil {
+		if err := rows.Scan(&repo.Name, &repo.Stars, &repo.Forks); err != nil {
 			return nil, fmt.Errorf("could not scan repository: %w", err)
 		}
 		repos = append(repos, repo)
@@ -106,12 +105,11 @@ func (s *SQLite) UpsertRepositories(ghRepos []service.GithubRepo) error {
 	defer tx.Rollback()
 
 	stmt, err := tx.Prepare(`
-        INSERT INTO repositories (name, stars, forks, watchers, last_updated)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO repositories (name, stars, forks, last_updated)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(name) DO UPDATE SET
             stars = excluded.stars,
             forks = excluded.forks,
-            watchers = excluded.watchers,
             last_updated = CURRENT_TIMESTAMP
     `)
 	if err != nil {
@@ -121,16 +119,14 @@ func (s *SQLite) UpsertRepositories(ghRepos []service.GithubRepo) error {
 
 	for _, ghRepo := range ghRepos {
 		repo := service.GithubRepo{
-			Name:     ghRepo.Name,
-			Stars:    ghRepo.Stars,
-			Forks:    ghRepo.Forks,
-			Watchers: ghRepo.Watchers,
+			Name:  ghRepo.Name,
+			Stars: ghRepo.Stars,
+			Forks: ghRepo.Forks,
 		}
 		if _, err := stmt.Exec(
 			repo.Name,
 			repo.Stars,
 			repo.Forks,
-			repo.Watchers,
 		); err != nil {
 			return fmt.Errorf("could not upsert repository %s: %w", repo.Name, err)
 		}

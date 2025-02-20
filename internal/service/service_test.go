@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,43 +10,37 @@ import (
 func TestCalcDiffs(t *testing.T) {
 	givenDBRepos := []GithubRepo{
 		{
-			Name:     "foo",
-			Stars:    1,
-			Forks:    2,
-			Watchers: 3,
+			Name:  "foo",
+			Stars: 1,
+			Forks: 2,
 		},
 		{
-			Name:     "bar",
-			Stars:    1,
-			Forks:    2,
-			Watchers: 3,
+			Name:  "bar",
+			Stars: 1,
+			Forks: 2,
 		},
 		{
-			Name:     "qux",
-			Stars:    1,
-			Forks:    2,
-			Watchers: 3,
+			Name:  "qux",
+			Stars: 1,
+			Forks: 2,
 		},
 	}
 
 	givenGhRepos := []GithubRepo{
 		{
-			Name:     "foo",
-			Stars:    2,
-			Forks:    2,
-			Watchers: 3,
+			Name:  "foo",
+			Stars: 2, // +1
+			Forks: 2,
 		},
 		{
-			Name:     "bar",
-			Stars:    1,
-			Forks:    2,
-			Watchers: 3,
+			Name:  "bar", // no change
+			Stars: 1,
+			Forks: 2,
 		},
 		{
-			Name:     "qux",
-			Stars:    1,
-			Forks:    2,
-			Watchers: 2,
+			Name:  "qux",
+			Stars: 1,
+			Forks: 2,
 		},
 	}
 
@@ -53,19 +48,14 @@ func TestCalcDiffs(t *testing.T) {
 
 	expected := []Diff{
 		{
-			Name:     "foo",
-			Stars:    intsToPtr(1),
-			Forks:    intsToPtr(0),
-			Watchers: intsToPtr(0),
-		},
-		{
-			Name:     "qux",
-			Stars:    intsToPtr(0),
-			Forks:    intsToPtr(0),
-			Watchers: intsToPtr(-1),
+			Name:  "foo",
+			Stars: 1,
 		},
 	}
 
+	for _, d := range got {
+		fmt.Println(d.String())
+	}
 	assert.ElementsMatch(t, expected, got)
 }
 

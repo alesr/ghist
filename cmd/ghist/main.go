@@ -31,5 +31,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("#")
+	for _, d := range diffs {
+		fmt.Println(d.String())
+	}
 }

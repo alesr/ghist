@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 )
 
 type ghClient interface {
@@ -16,10 +17,9 @@ type repo interface {
 }
 
 type GithubRepo struct {
-	Name     string `json:"name"`
-	Stars    int    `json:"stargazers_count"`
-	Forks    int    `json:"forks_count"`
-	Watchers int    `json:"watchers_count"`
+	Name  string `json:"name"`
+	Stars int    `json:"stargazers_count"`
+	Forks int    `json:"forks_count"`
 }
 
 type service struct {
@@ -42,22 +42,35 @@ func (s *service) Run(ctx context.Context, ghUsername string) ([]Diff, error) {
 		return nil, fmt.Errorf("could not get repos from db: %w", err)
 	}
 
-	if err := s.repo.UpsertRepositories(dbRepos); err != nil {
-		return nil, fmt.Errorf("could not upsert repos in db: %w", err)
+	ghRepos, err := s.ghClient.FetchRepos(context.TODO(), ghUsername)
+	if err != nil {
+		return nil, fmt.Errorf("could not get repos from GitHub: %w", err)
 	}
 
-	ghRepos, err := s.ghClient.FetchRepos(context.TODO(), "alesr")
-	if err != nil {
-		return nil, fmt.Errorf("could not get repos from Github: %w", err)
+	diffs := calcDiffs(ghRepos, dbRepos)
+
+	if err := s.repo.UpsertRepositories(ghRepos); err != nil {
+		return nil, fmt.Errorf("could not upsert repos in db: %w", err)
 	}
-	return calcDiffs(ghRepos, dbRepos), nil
+	return diffs, nil
 }
 
 type Diff struct {
-	Name     string
-	Stars    *int
-	Forks    *int
-	Watchers *int
+	Name  string
+	Stars int
+	Forks int
+}
+
+func (d *Diff) String() string {
+	var parts []string
+	if d.Stars > 0 {
+		parts = append(parts, fmt.Sprintf("%s: +%d stars", d.Name, d.Stars))
+	}
+
+	if d.Forks > 0 {
+		parts = append(parts, fmt.Sprintf("+%d forks", d.Forks))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func calcDiffs(ghRepos []GithubRepo, dbRepos []GithubRepo) []Diff {
@@ -73,35 +86,25 @@ func calcDiffs(ghRepos []GithubRepo, dbRepos []GithubRepo) []Diff {
 		}
 
 		if dbRepo == nil {
-			diffs = append(diffs, Diff{
-				Name:     ghRepo.Name,
-				Stars:    &ghRepo.Stars,
-				Forks:    &ghRepo.Forks,
-				Watchers: &ghRepo.Watchers,
-			})
+			if ghRepo.Stars > 0 || ghRepo.Forks > 0 {
+				diffs = append(diffs, Diff{
+					Name:  ghRepo.Name,
+					Stars: ghRepo.Stars,
+					Forks: ghRepo.Forks,
+				})
+			}
 		} else {
 			starsDiff := ghRepo.Stars - dbRepo.Stars
 			forksDiff := ghRepo.Forks - dbRepo.Forks
-			watchersDiff := ghRepo.Watchers - dbRepo.Watchers
 
-			if starsDiff != 0 || forksDiff != 0 || watchersDiff != 0 {
+			if starsDiff > 0 || forksDiff > 0 {
 				diffs = append(diffs, Diff{
-					Name:     ghRepo.Name,
-					Stars:    pointerOrNil(starsDiff),
-					Forks:    pointerOrNil(forksDiff),
-					Watchers: pointerOrNil(watchersDiff),
+					Name:  ghRepo.Name,
+					Stars: starsDiff,
+					Forks: forksDiff,
 				})
 			}
 		}
 	}
 	return diffs
-}
-
-var zero = 0
-
-func pointerOrNil(i int) *int {
-	if i == 0 {
-		return &zero
-	}
-	return &i
 }
