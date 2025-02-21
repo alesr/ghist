@@ -22,6 +22,24 @@ type GithubRepo struct {
 	Forks int    `json:"forks_count"`
 }
 
+type Diff struct {
+	Name  string
+	Stars int
+	Forks int
+}
+
+func (d *Diff) String() string {
+	var parts []string
+	if d.Stars > 0 {
+		parts = append(parts, fmt.Sprintf("%s: +%d stars", d.Name, d.Stars))
+	}
+
+	if d.Forks > 0 {
+		parts = append(parts, fmt.Sprintf("+%d forks", d.Forks))
+	}
+	return strings.Join(parts, ", ")
+}
+
 type service struct {
 	logger   *slog.Logger
 	repo     repo
@@ -53,24 +71,6 @@ func (s *service) Run(ctx context.Context, ghUsername string) ([]Diff, error) {
 		return nil, fmt.Errorf("could not upsert repos in db: %w", err)
 	}
 	return diffs, nil
-}
-
-type Diff struct {
-	Name  string
-	Stars int
-	Forks int
-}
-
-func (d *Diff) String() string {
-	var parts []string
-	if d.Stars > 0 {
-		parts = append(parts, fmt.Sprintf("%s: +%d stars", d.Name, d.Stars))
-	}
-
-	if d.Forks > 0 {
-		parts = append(parts, fmt.Sprintf("+%d forks", d.Forks))
-	}
-	return strings.Join(parts, ", ")
 }
 
 func calcDiffs(ghRepos []GithubRepo, dbRepos []GithubRepo) []Diff {

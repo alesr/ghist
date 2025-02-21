@@ -21,6 +21,15 @@ const (
 		forks INTEGER,
 		last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`
+
+	upsertQuery = `
+        INSERT INTO repositories (name, stars, forks, last_updated)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(name) DO UPDATE SET
+            stars = excluded.stars,
+            forks = excluded.forks,
+            last_updated = CURRENT_TIMESTAMP
+    `
 )
 
 type SQLite struct{ db *sql.DB }
@@ -104,14 +113,7 @@ func (s *SQLite) UpsertRepositories(ghRepos []service.GithubRepo) error {
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare(`
-        INSERT INTO repositories (name, stars, forks, last_updated)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(name) DO UPDATE SET
-            stars = excluded.stars,
-            forks = excluded.forks,
-            last_updated = CURRENT_TIMESTAMP
-    `)
+	stmt, err := tx.Prepare(upsertQuery)
 	if err != nil {
 		return fmt.Errorf("could not prepare statement: %w", err)
 	}
@@ -123,11 +125,7 @@ func (s *SQLite) UpsertRepositories(ghRepos []service.GithubRepo) error {
 			Stars: ghRepo.Stars,
 			Forks: ghRepo.Forks,
 		}
-		if _, err := stmt.Exec(
-			repo.Name,
-			repo.Stars,
-			repo.Forks,
-		); err != nil {
+		if _, err := stmt.Exec(repo.Name, repo.Stars, repo.Forks); err != nil {
 			return fmt.Errorf("could not upsert repository %s: %w", repo.Name, err)
 		}
 	}
